@@ -1,0 +1,46 @@
+# CI: lint -> unit tests -> full bootstrap with evals -> release gate -> container build.
+# The gate step is what makes prompts, models and indexes "deployable changes": a quality regression fails CI.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-gate:
+    runs-on: ubuntu-latest
+    env:
+      LLM_PROVIDER: offline          # deterministic + free in CI. A separate scheduled job can run evals against the real model.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install -r requirements.txt ruff
+      - name: Lint
+        run: ruff check sentinel tests
+      - name: Unit tests
+        run: python -m pytest
+      - name: Bootstrap (data -> pipeline -> models -> index -> evals)
+        run: python -m sentinel.cli bootstrap --agent 6
+      - name: Release gate
+        run: python -m sentinel.cli gate
+      - name: Upload eval reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-reports
+          path: var/reports/
+
+  image:
+    needs: test-and-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t sentinel:${{ github.sha }} .
+      # - name: Push to registry / deploy to staging / canary to production

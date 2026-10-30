@@ -1,0 +1,104 @@
+# Kubernetes deployment for Sentinel (kind/minikube locally, EKS/AKS/GKE in the cloud).
+#   kubectl apply -f k8s/sentinel.yaml
+#   kubectl -n sentinel apply -f k8s/jobs.yaml        # bootstrap job + nightly retrain/eval cronjob
+#   kubectl -n sentinel port-forward svc/sentinel-api 8000:80
+#
+# Production notes in comments; see docs/learning-path/10-serving-deployment-mlops.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sentinel
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentinel-config
+  namespace: sentinel
+data:
+  SENTINEL_HOME: /data
+  LLM_PROVIDER: auto
+  AGENT_MAX_STEPS: "8"
+  AGENT_MAX_COST_USD: "0.50"
+  SKIP_BOOTSTRAP: "true"          # the bootstrap Job builds the data; API pods only serve
+---
+# Secrets: create from your secret manager (External Secrets / CSI driver), never commit real values.
+#   kubectl -n sentinel create secret generic sentinel-secrets --from-literal=ANTHROPIC_API_KEY=... --from-literal=SENTINEL_API_KEY=...
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sentinel-data
+  namespace: sentinel
+spec:
+  accessModes: ["ReadWriteOnce"]   # demo: single replica. Shared state belongs in Postgres/Redis/S3 when scaling out.
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-api
+  namespace: sentinel
+  labels: { app: sentinel-api }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sentinel-api }
+  template:
+    metadata:
+      labels: { app: sentinel-api }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: api
+          image: sentinel:latest           # push to your registry (ECR/ACR/GCR) and pin a digest in production
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 8000 }]
+          envFrom:
+            - configMapRef: { name: sentinel-config }
+            - secretRef: { name: sentinel-secrets, optional: true }
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits: { cpu: "2", memory: "3Gi" }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: sentinel-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-api
+  namespace: sentinel
+spec:
+  selector: { app: sentinel-api }
+  ports: [{ port: 80, targetPort: 8000 }]
+---
+# Autoscaling becomes meaningful once state is external (see PVC note). Kept here to show the pattern.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sentinel-api
+  namespace: sentinel
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: sentinel-api }
+  minReplicas: 1
+  maxReplicas: 1                    # raise after moving state to Postgres/Redis
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }

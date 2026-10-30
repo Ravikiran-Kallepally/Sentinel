@@ -1,0 +1,51 @@
+# One-off bootstrap and a nightly MLOps loop: retrain -> evaluate -> gate.
+# The registry's champion/challenger rule means a nightly retrain only replaces production when it is better,
+# and the gate fails the job (visible in monitoring) when quality drops.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sentinel-bootstrap
+  namespace: sentinel
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsUser: 10001, fsGroup: 10001 }
+      containers:
+        - name: bootstrap
+          image: sentinel:latest
+          command: ["python", "-m", "sentinel.cli", "bootstrap", "--agent", "6"]
+          envFrom:
+            - configMapRef: { name: sentinel-config }
+            - secretRef: { name: sentinel-secrets, optional: true }
+          volumeMounts: [{ name: data, mountPath: /data }]
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: sentinel-data }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sentinel-nightly-retrain
+  namespace: sentinel
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext: { runAsUser: 10001, fsGroup: 10001 }
+          containers:
+            - name: retrain
+              image: sentinel:latest
+              command: ["sh", "-c", "python -m sentinel.cli pipeline && python -m sentinel.cli train && python -m sentinel.cli eval --agent 6 && python -m sentinel.cli gate"]
+              envFrom:
+                - configMapRef: { name: sentinel-config }
+                - secretRef: { name: sentinel-secrets, optional: true }
+              volumeMounts: [{ name: data, mountPath: /data }]
+          volumes:
+            - name: data
+              persistentVolumeClaim: { claimName: sentinel-data }

@@ -1,0 +1,31 @@
+# Local container run:  docker compose up --build   ->  http://localhost:8000
+#
+# Only the Sentinel service is required: it runs local stand-ins for each heavy component (file event log for
+# Kafka, Parquet for Delta, DuckDB for Snowflake, SQLite for Postgres, in-process cache for Redis).
+# The commented services show what each stand-in would be replaced with in a production-like stack;
+# docs/next-steps.md walks through each swap.
+services:
+  sentinel:
+    build: .
+    image: sentinel:latest
+    ports: ["8000:8000"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SENTINEL_HOME: /data
+    volumes:
+      - sentinel-data:/data
+    restart: unless-stopped
+
+  # kafka:                          # replaces sentinel/platform/stream.py FileEventLog
+  #   image: bitnami/kafka:3.7
+  # postgres:                       # replaces SQLite ops store; add pgvector for the vector index
+  #   image: pgvector/pgvector:pg16
+  # redis:                          # replaces the in-process semantic cache and online feature store
+  #   image: redis:7
+  # airflow:                        # runs orchestration/airflow_dag.py instead of the built-in DAG runner
+  #   image: apache/airflow:2.9.3
+
+volumes:
+  sentinel-data:

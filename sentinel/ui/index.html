@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sentinel Console</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7z' fill='%232b6cb0'/><path d='m11 16 4 4 7-8' stroke='white' stroke-width='3' fill='none'/></svg>">
+  <link rel="stylesheet" href="static/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7z" fill="var(--accent)"/><path d="m11 16 4 4 7-8" stroke="white" stroke-width="3" fill="none"/></svg>
+      <div><div class="brand-name">Sentinel</div><div class="brand-sub">Fraud &amp; Disputes AI</div></div>
+    </div>
+    <nav id="nav">
+      <div class="nav-group">Operate</div>
+      <a href="#overview" data-page="overview">Overview</a>
+      <a href="#live" data-page="live">Live scoring</a>
+      <a href="#cases" data-page="cases">Cases &amp; agent</a>
+      <a href="#copilot" data-page="copilot">Policy copilot</a>
+      <a href="#nlp" data-page="nlp">Complaint NLP</a>
+      <div class="nav-group">Build &amp; run</div>
+      <a href="#models" data-page="models">Model lab</a>
+      <a href="#platform" data-page="platform">Data platform</a>
+      <a href="#evals" data-page="evals">Evals &amp; LLMOps</a>
+      <div class="nav-group">Understand</div>
+      <a href="#learn" data-page="learn">Learn</a>
+    </nav>
+    <div class="provider" id="provider">LLM: …</div>
+  </aside>
+  <main id="main"><div class="loading">Loading…</div></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="static/app.js"></script>
+</body>
+</html>

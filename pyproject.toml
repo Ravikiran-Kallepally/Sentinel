@@ -1,0 +1,19 @@
+[project]
+name = "sentinel"
+version = "1.0.0"
+description = "Fraud & disputes intelligence platform with an AI copilot - an end-to-end AI engineering learning project"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+# B905: zip() calls here pair equal-length sequences by construction.
+ignore = ["E501", "B008", "B905"]
